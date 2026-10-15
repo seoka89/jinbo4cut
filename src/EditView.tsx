@@ -159,7 +159,6 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
   };
 
   const closeResult = () => {
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
     setResultUrl(null);
     setResultBlob(null);
   };
@@ -183,8 +182,15 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
       if (isMobileDevice()) {
         // 폰: 다운로드(<a download>)는 기기/앱 브라우저에 따라 실패하므로
         // 완성 이미지를 화면에 띄워 길게 눌러 저장하게 하고, 공유 저장도 지원
+        // blob: 주소는 네이버 앱 등 앱 내 브라우저에서 길게 눌러 저장이 안 되므로 data URL 사용
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
         setResultBlob(blob);
-        setResultUrl(URL.createObjectURL(blob));
+        setResultUrl(dataUrl);
         return;
       }
       downloadBlob(blob, filename);
@@ -361,7 +367,7 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
       {resultUrl && (
         <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-4 gap-3">
           <p className="text-white text-sm text-center font-medium">
-            사진을 <b>길게 눌러</b> &quot;이미지 저장&quot;을 선택하세요
+            아래 <b>공유로 저장</b>을 누르거나, 사진을 <b>길게 눌러</b> 저장하세요
           </p>
           <img
             src={resultUrl}
@@ -369,6 +375,9 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
             className="max-h-[70vh] w-auto rounded-xl shadow-2xl"
             style={{ WebkitTouchCallout: 'default' }}
           />
+          <p className="text-white/60 text-xs text-center">
+            저장이 안 되면 오른쪽 아래 메뉴에서 &quot;다른 브라우저로 열기&quot;(Chrome/Safari)를 이용해보세요
+          </p>
           <div className="flex gap-2 w-full max-w-xs">
             <button
               onClick={handleShare}

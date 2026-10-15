@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { Download, ArrowLeft, RotateCcw, Check, Sparkles } from 'lucide-react';
 import { defaultSlots, bundledFrames } from './frames';
 import { APP_TITLE, FRAME_W, FRAME_H, SLOT_COUNT, type FrameTemplate, type Photo } from './types';
-import { composeFinalImage, canvasToJpgBlob, downloadBlob } from './compose';
+import { composeFinalImage, canvasToJpgBlob, downloadBlob, isMobileDevice, shareImageBlob } from './compose';
 
 // 필터 프리셋 정의 (핵심 4종, 뽀샤시에 피부 매끈화 효과 추가)
 export type FilterType = 'normal' | 'grayscale' | 'warm' | 'warm2' | 'vintage';
@@ -48,6 +48,8 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const previewRef = useRef<HTMLCanvasElement>(null);
+  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
 
   const activeFilterCss = FILTER_OPTIONS.find((f) => f.id === selectedFilter)?.cssFilter ?? 'none';
 
@@ -156,6 +158,19 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
     });
   };
 
+  const closeResult = () => {
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    setResultUrl(null);
+    setResultBlob(null);
+  };
+
+  const handleShare = async () => {
+    if (!resultBlob) return;
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const ok = await shareImageBlob(resultBlob, `jinbo4cut_${date}.jpg`);
+    if (!ok) alert('이 브라우저는 공유 저장을 지원하지 않아요. 사진을 길게 눌러 저장해주세요.');
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaved(false);
@@ -164,7 +179,15 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
       const canvas = composeFinalImage(frame, photoMap, overlayImg, activeFilterCss);
       const blob = await canvasToJpgBlob(canvas, 0.95);
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      downloadBlob(blob, `진보네컷_${date}.jpg`);
+      const filename = `jinbo4cut_${date}.jpg`;
+      if (isMobileDevice()) {
+        // 폰: 다운로드(<a download>)는 기기/앱 브라우저에 따라 실패하므로
+        // 완성 이미지를 화면에 띄워 길게 눌러 저장하게 하고, 공유 저장도 지원
+        setResultBlob(blob);
+        setResultUrl(URL.createObjectURL(blob));
+        return;
+      }
+      downloadBlob(blob, filename);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
@@ -335,6 +358,33 @@ export function EditView({ photos, initialFrame, onBack }: Props) {
           </div>
         </div>
       </div>
+      {resultUrl && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-4 gap-3">
+          <p className="text-white text-sm text-center font-medium">
+            사진을 <b>길게 눌러</b> &quot;이미지 저장&quot;을 선택하세요
+          </p>
+          <img
+            src={resultUrl}
+            alt="진보네컷 완성본"
+            className="max-h-[70vh] w-auto rounded-xl shadow-2xl"
+            style={{ WebkitTouchCallout: 'default' }}
+          />
+          <div className="flex gap-2 w-full max-w-xs">
+            <button
+              onClick={handleShare}
+              className="flex-1 py-3 rounded-xl bg-brand-500 text-white font-display"
+            >
+              공유로 저장
+            </button>
+            <button
+              onClick={closeResult}
+              className="flex-1 py-3 rounded-xl bg-white text-gray-700 font-display"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -108,3 +108,25 @@ export function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** 폰/태블릿 여부 (아이패드 데스크톱 모드 포함) */
+export function isMobileDevice(): boolean {
+  const ua = navigator.userAgent;
+  return (
+    /Android|iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+/** 공유 시트로 이미지 저장 (지원 기기에서만). 성공/취소 시 true, 미지원/실패 시 false */
+export async function shareImageBlob(blob: Blob, filename: string): Promise<boolean> {
+  try {
+    const file = new File([blob], filename, { type: 'image/jpeg' });
+    if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false;
+    await navigator.share({ files: [file] });
+    return true;
+  } catch (e) {
+    // 사용자가 공유 창을 닫은 경우는 정상 처리
+    return e instanceof DOMException && e.name === 'AbortError';
+  }
+}
